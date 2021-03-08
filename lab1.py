@@ -1,5 +1,7 @@
 import psycopg2
 import random
+import time
+from config import config
 
 def import_to_db(year, conn, cur, test_fall_chance):
 	with open("log.txt") as log_file:
@@ -12,6 +14,7 @@ def import_to_db(year, conn, cur, test_fall_chance):
 				return 1
 			else:
 				cluster_num = int(line[0])
+	duration = float(time.time())
 	with open('Odata' + year + 'File.csv') as csvfile:
 		csvfile.readline()
 		n = 0
@@ -22,8 +25,6 @@ def import_to_db(year, conn, cur, test_fall_chance):
 		for line in csvfile:
 			arg_lst = []
 			line = line.split(";")
-
-			#if (line[29] != "null"):
 			OutID = ("'" + str(line[0].replace('"','')) + "_" + year + "'")
 			arg_lst.append(OutID)
 			arg_lst.append(line[33].replace('"',"'"))
@@ -45,6 +46,9 @@ def import_to_db(year, conn, cur, test_fall_chance):
 			if (random.randint(0, test_fall_chance) == 1):
 				print("Потеряно соединение с базой данных")
 				conn.close()
+		duration = round((float(time.time()) - duration), 4)
+		with open('upload_time.txt','a') as upload_time:
+			upload_time.write('Data from Odata' + year + 'File.csv uploaded in ' + str(duration) + ' seconds\n')
 	return 0	
 
 command_drop = "DROP TABLE hist_results;"
@@ -75,7 +79,8 @@ if (test_fall == "y"):
 else:
 	test_fall_chance = 0
 
-conn = psycopg2.connect("dbname=Lab1 user=postgres password=vinkog123")
+params = config()
+conn = psycopg2.connect(**params)
 cur = conn.cursor()
 cur.execute("select exists(select * from information_schema.tables where table_name='hist_results')")
 if (cur.fetchone()[0]):
@@ -88,8 +93,9 @@ if (not (cur.fetchone()[0])):
 for year in years:
 	import_to_db(year, conn, cur, test_fall_chance)
 
-open("log.txt","w")
-
+clear = open("log.txt","w")
+clear.write("")
+clear.close()
 
 select_list = []
 cur.execute(command_select)
@@ -106,8 +112,6 @@ while (result != None):
 cur.close()
 conn.commit()
 conn.close()
-
-
 csv_data = [";".join([str(y) for y in x]) for x in select_list]
 
 with open("Result.csv", "w") as result_f:
