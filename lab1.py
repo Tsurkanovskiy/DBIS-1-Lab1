@@ -71,6 +71,18 @@ command_select = '''SELECT "Region", min("Score"), "Year" FROM public.hist_resul
 
 command_insert = "INSERT INTO Hist_results VALUES(%s)"
 
+
+
+
+
+try:
+	f = open("log.txt")
+	f.close()
+except FileNotFoundError:
+	f = open("log.txt","w")
+	f.close()
+
+
 years = ['2019', '2020']
 
 test_fall = input("Желеете протестировать сценарий 'падения' базы данных? (y/n)")
@@ -78,7 +90,6 @@ if (test_fall == "y"):
 	test_fall_chance = int(input("Пожалуйста введите n (вероятность падения базы данных после анализа строчки - 1/n): "))
 else:
 	test_fall_chance = 0
-
 params = config()
 conn = psycopg2.connect(**params)
 cur = conn.cursor()
