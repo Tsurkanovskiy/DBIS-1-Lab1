@@ -2,6 +2,8 @@ import psycopg2
 import random
 import time
 from config import config
+from sqlcommands import sqlcreate, sqldrop, sqlselect, sqlinsert
+
 
 def import_to_db(year, conn, cur, test_fall_chance):
 	with open("log.txt") as log_file:
@@ -18,7 +20,6 @@ def import_to_db(year, conn, cur, test_fall_chance):
 	with open('Odata' + year + 'File.csv') as csvfile:
 		csvfile.readline()
 		n = 0
-		ider = 0
 		while (n < cluster_num*50):
 			n += 1
 			csvfile.readline()
@@ -27,18 +28,30 @@ def import_to_db(year, conn, cur, test_fall_chance):
 			line = line.split(";")
 			OutID = ("'" + str(line[0].replace('"','')) + "_" + year + "'")
 			arg_lst.append(OutID)
-			arg_lst.append(line[33].replace('"',"'"))
-			arg_lst.append(line[29].replace(',','.'))
-			arg_lst.append(line[28].replace('"',"'"))
+			for i in range(1, len(line)):
+				line[i] = line[i].replace("'","’")
+				if ((line[i][0] == '"')&((line[i][-1] == '"'))):
+					line[i] = ("'" + line[i][1:-1] + "'")
+				else:
+					line[i] = line[i].replace('"',"'")
+					line[i] = line[i].replace(",",".")
+				arg_lst.append(line[i])
 			arg_lst.append(year)
-			cur.execute(command_insert % (", ".join(arg_lst)))
-			#f = open("uploaded.txt", "a")
-			#f.write(str(n) + (", ".join(arg_lst)) + "\n")
-			#f.close()
+			cur = sqlinsert(cur, arg_lst)
+
+			log_file = open("log.txt", "w")
+			log_file.write(str(cluster_num) + ";" + year)
+			log_file.close()
 
 			n+=1
-			if ((n > 0)&((n % 50) == 0)):			
-				conn.commit()
+			if ((n > 0)&((n % 50) == 0)):
+				try:
+					conn.commit()
+				except psycopg2.InterfaceError as e:
+					log_file = open("log.txt", "w")
+					log_file.write(str(cluster_num - 1) + ";" + year)
+					log_file.close()
+					raise e
 				cluster_num+=1
 				log_file = open("log.txt", "w")
 				log_file.write(str(cluster_num) + ";" + year)
@@ -46,42 +59,22 @@ def import_to_db(year, conn, cur, test_fall_chance):
 			if (random.randint(0, test_fall_chance) == 1):
 				print("Потеряно соединение с базой данных")
 				conn.close()
+		conn.commit()
 		duration = round((float(time.time()) - duration), 4)
 		with open('upload_time.txt','a') as upload_time:
 			upload_time.write('Data from Odata' + year + 'File.csv uploaded in ' + str(duration) + ' seconds\n')
 	return 0	
 
-command_drop = "DROP TABLE hist_results;"
-command_create = """
-CREATE TABLE public."hist_results"
-(
-	"OutID" text COLLATE pg_catalog."default" NOT NULL,
-    "Region" text COLLATE pg_catalog."default",
-    "Score" real,
-    "Status" text COLLATE pg_catalog."default",
-    "Year" integer NOT NULL,
-    CONSTRAINT "Hist_results_pkey" PRIMARY KEY ("OutID")
-)
-"""
 
-command_select = '''SELECT "Region", min("Score"), "Year" FROM public.hist_results
-	WHERE "Status" = 'Зараховано'
-	GROUP BY "Region", "Year"
-	ORDER BY "Region", "Year";'''
-
-command_insert = "INSERT INTO Hist_results VALUES(%s)"
 
 
 
 
 
 try:
-	f = open("log.txt")
-	f.close()
+	open("log.txt").close()	
 except FileNotFoundError:
-	f = open("log.txt","w")
-	f.close()
-
+	open("log.txt","w").close()	
 
 years = ['2019', '2020']
 
@@ -97,19 +90,19 @@ cur.execute("select exists(select * from information_schema.tables where table_n
 if (cur.fetchone()[0]):
 	drop = input("Желеете удалить базу данных? (y/n)")
 	if (drop == "y"):
-		cur.execute(command_drop)
+		cur = sqldrop(cur)
 cur.execute("select exists(select * from information_schema.tables where table_name='hist_results')")
 if (not (cur.fetchone()[0])):
-	cur.execute(command_create)
+	cur = sqlcreate(cur)
+
 for year in years:
 	import_to_db(year, conn, cur, test_fall_chance)
 
-clear = open("log.txt","w")
-clear.write("")
-clear.close()
+open("log.txt","w").close()
+print("Загрузка завершена")
 
 select_list = []
-cur.execute(command_select)
+cur = sqlselect(cur)
 result = cur.fetchone()
 select_list.append(list(result)[:2])
 while (result != None):
@@ -130,3 +123,4 @@ with open("Result.csv", "w") as result_f:
 	for item in csv_data:
 		result_f.write("\n")
 		result_f.write(item)
+print("Запись завершена")
