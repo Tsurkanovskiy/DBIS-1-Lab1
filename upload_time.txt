@@ -1,2 +1,2 @@
-Data from Odata2019File.csv uploaded in 105.9172 seconds
-Data from Odata2020File.csv uploaded in 11.61 seconds
+Data from Odata2019File.csv uploaded in 458.4732 seconds
+Data from Odata2020File.csv uploaded in 81.0786 seconds
